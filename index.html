@@ -869,10 +869,8 @@
     meals[dayKey][slotKey] = { dishId: null, name: '' };
     renderMeals();
     if (dbApi && mealRef) {
-      const patch = { meals: {} };
-      patch.meals[dayKey] = {};
-      patch.meals[dayKey][slotKey] = { dishId: null, name: '' };
-      mealRef.update(patch).catch(() => {});
+      const fieldPath = 'meals.' + dayKey + '.' + slotKey;
+      mealRef.update({ [fieldPath]: { dishId: null, name: '' } }).catch(() => {});
     }
   }
 
@@ -881,11 +879,9 @@
     meals[dayKey][slotKey] = { dishId: dish.id, name: dish.name };
     renderMeals();
     if (dbApi && mealRef) {
-      const patch = { meals: {} };
-      patch.meals[dayKey] = {};
-      patch.meals[dayKey][slotKey] = { dishId: dish.id, name: dish.name };
-      mealRef.update(patch).catch(() => {
-        mealRef.set({ meals: meals, updatedAt: new Date().toISOString() }).catch(() => {});
+      const fieldPath = 'meals.' + dayKey + '.' + slotKey;
+      mealRef.update({ [fieldPath]: { dishId: dish.id, name: dish.name } }).catch(() => {
+        mealRef.set({ meals: meals, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
       });
     }
     await mergeIngredientsIntoShopping(dish.ingredients || []);
