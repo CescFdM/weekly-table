@@ -524,6 +524,7 @@
     <div class="modal-actions">
       <label class="upload-btn" for="photoFileInput">Upload photo</label>
       <input type="file" id="photoFileInput" accept="image/*" style="display:none;">
+      <button type="button" class="ghost" id="photoFindBtn" style="display:none;">Find photo</button>
       <button type="button" class="danger" id="photoRemoveBtn" style="display:none;">Remove photo</button>
       <div class="spacer"></div>
       <button type="button" class="ghost" id="photoCloseBtn">Close</button>
@@ -724,6 +725,7 @@
   const photoCreditEl = document.getElementById('photoCredit');
   const photoErrorEl = document.getElementById('photoError');
   const photoFileInput = document.getElementById('photoFileInput');
+  const photoFindBtn = document.getElementById('photoFindBtn');
   const photoRemoveBtn = document.getElementById('photoRemoveBtn');
   const photoCloseBtn = document.getElementById('photoCloseBtn');
 
@@ -1432,6 +1434,7 @@
     photoIngsEl.textContent = (dish.ingredients && dish.ingredients.length) ? dish.ingredients.join(', ') : 'No ingredients listed';
     renderPhotoCredit(dish);
     photoRemoveBtn.style.display = dish.photo ? '' : 'none';
+    photoFindBtn.style.display = (!dish.photo && UNSPLASH_ACCESS_KEY) ? '' : 'none';
     photoErrorEl.classList.remove('show');
     photoBackdrop.classList.add('show');
   }
@@ -1479,6 +1482,7 @@
       renderPhotoFrame(dish);
       renderPhotoCredit(dish);
       photoRemoveBtn.style.display = '';
+      photoFindBtn.style.display = 'none';
     }
   }
 
@@ -1506,6 +1510,40 @@
     renderDishes();
     if (dish) { renderPhotoFrame(dish); renderPhotoCredit(dish); }
     photoRemoveBtn.style.display = 'none';
+    photoFindBtn.style.display = UNSPLASH_ACCESS_KEY ? '' : 'none';
+  });
+
+  photoFindBtn.addEventListener('click', async () => {
+    const id = photoDishId;
+    const dish = getDishById(id);
+    if (!dish) return;
+    photoErrorEl.classList.remove('show');
+    photoFindBtn.disabled = true;
+    const originalLabel = photoFindBtn.textContent;
+    photoFindBtn.textContent = 'Searching…';
+    try {
+      const result = await searchDishImage(dish.name, dish.ingredients);
+      if (result && result.url) {
+        if (dbApi && dishCol) {
+          try { await dishCol.doc(id).update({ photo: result.url, photoCredit: result.credit }); } catch (e) {}
+        }
+        dish.photo = result.url;
+        dish.photoCredit = result.credit;
+        renderDishes();
+        if (photoDishId === id) {
+          renderPhotoFrame(dish);
+          renderPhotoCredit(dish);
+          photoRemoveBtn.style.display = '';
+          photoFindBtn.style.display = 'none';
+        }
+      } else {
+        photoErrorEl.textContent = 'No matching photo found on Unsplash.';
+        photoErrorEl.classList.add('show');
+      }
+    } finally {
+      photoFindBtn.disabled = false;
+      photoFindBtn.textContent = originalLabel;
+    }
   });
 
   photoCloseBtn.addEventListener('click', closePhotoModal);
