@@ -83,7 +83,7 @@ export const INGREDIENT_GROUPS = [
   { icon: '🧂', terms: ['mayonnaise', 'mayo'] },
   { icon: '🧂', terms: ['ketchup'] },
   { icon: '🍶', terms: ['soy sauce', 'sojasauce'] },
-  { icon: '🍲', terms: ['stock', 'broth', 'brühe', 'bruhe'] },
+  { icon: '🍲', terms: ['stock', 'broth', 'soup', 'brühe', 'bruhe', 'suppe'] },
   { icon: '🍷', terms: ['wine', 'wein'] },
   { icon: '🍞', terms: ['yeast', 'hefe'] },
   { icon: '🧂', terms: ['baking powder', 'backpulver'] },
