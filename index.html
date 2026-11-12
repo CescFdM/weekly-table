@@ -349,6 +349,14 @@
   .pick:hover { background: var(--accent); color: #2A1D02; }
   .pick:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
 
+  .edit {
+    font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 0.78rem;
+    background: none; color: var(--ink-soft); border: 1px solid var(--line);
+    border-radius: 7px; padding: 0.4rem 0.5rem; cursor: pointer; flex-shrink: 0;
+  }
+  .edit:hover { background: var(--surface-2); color: var(--ink); }
+  .edit:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+
   .del {
     background: none; border: none; color: var(--ink-faint); cursor: pointer;
     font-size: 1rem; border-radius: 6px; padding: 0.35rem 0.5rem; flex-shrink: 0;
@@ -436,6 +444,7 @@
     }
     .dactions { gap: 0.3rem; }
     .pick { font-size: 0.64rem; padding: 0.32rem 0.3rem; }
+    .edit { font-size: 0.64rem; padding: 0.32rem 0.3rem; }
     .del { font-size: 0.8rem; padding: 0.2rem 0.3rem; }
     .thumb-icons { font-size: 1.5rem !important; gap: 0.15rem; }
   }
@@ -982,6 +991,13 @@
       const actions = document.createElement('div');
       actions.className = 'dactions';
 
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'edit';
+      edit.textContent = 'Edit';
+      edit.setAttribute('aria-label', 'Edit ' + dish.name);
+      edit.addEventListener('click', () => openLibraryEditModal(dish));
+
       const pick = document.createElement('button');
       pick.type = 'button';
       pick.className = 'pick';
@@ -995,6 +1011,7 @@
       del.setAttribute('aria-label', 'Delete ' + dish.name + ' from your dishes');
       del.addEventListener('click', () => deleteDish(dish));
 
+      actions.appendChild(edit);
       actions.appendChild(pick);
       actions.appendChild(del);
       body.appendChild(nameEl);
@@ -1071,6 +1088,21 @@
     } else {
       const d = getDishById(dishId);
       if (d && !d.photo) { d.photo = result.url; d.photoCredit = result.credit; renderDishes(); }
+    }
+  }
+
+  // Unlike fetchAndSetDishPhoto (new dishes only, never overwrites), this
+  // always replaces the photo — used when a dish is edited and saved, so a
+  // rename (e.g. "Eier" -> "Scrambled Eggs") gets a freshly matched photo
+  // instead of keeping whatever was found under the old name.
+  async function refreshDishPhoto(dishId, name, ingredients) {
+    const result = await searchDishImage(name, ingredients);
+    if (!result || !result.url) return;
+    if (dbApi && dishCol) {
+      try { await dishCol.doc(dishId).update({ photo: result.url, photoCredit: result.credit }); } catch (e) {}
+    } else {
+      const d = getDishById(dishId);
+      if (d) { d.photo = result.url; d.photoCredit = result.credit; renderDishes(); }
     }
   }
 
@@ -1383,6 +1415,19 @@
     showModal();
   }
 
+  function openLibraryEditModal(dish) {
+    modalMode = 'library-edit';
+    modalDay = null; modalSlot = null;
+    modalExistingDishId = dish.id;
+    modalTitleEl.textContent = 'Edit \u201c' + dish.name + '\u201d';
+    modalTargetStatic.style.display = 'none';
+    modalTargetSelect.style.display = 'none';
+    modalName.value = dish.name;
+    modalIngredients.value = dish.ingredients ? dish.ingredients.join('\n') : '';
+    modalRemoveBtn.style.display = 'none';
+    showModal();
+  }
+
   function openLibraryAssignModal(dish) {
     modalMode = 'library-assign';
     modalExistingDishId = dish.id;
@@ -1425,6 +1470,8 @@
         await assignDish(modalDay, modalSlot, dish);
       } else if (modalMode === 'library-assign') {
         await assignDish(modalDaySel.value, modalSlotSel.value, dish);
+      } else if (modalMode === 'library-edit') {
+        refreshDishPhoto(dish.id, name, ingredients);
       }
       closeModal();
     } finally {
