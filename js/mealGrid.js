@@ -74,14 +74,19 @@ export function buildGrid() {
         if (dish) assignDish(day.key, slot.key, dish);
       });
 
+      const thumb = document.createElement('img');
+      thumb.className = 'slotthumb';
+      thumb.alt = '';
+
       const content = document.createElement('div');
       content.className = 'slotcontent';
 
+      btn.appendChild(thumb);
       btn.appendChild(content);
       btn.appendChild(clearBtn);
       cell.appendChild(btn);
       gridEl.appendChild(cell);
-      cellEls[day.key + ':' + slot.key] = { btn, content, clearBtn };
+      cellEls[day.key + ':' + slot.key] = { btn, thumb, content, clearBtn };
     });
   });
 }
@@ -90,7 +95,7 @@ export function renderMeals() {
   Object.keys(cellEls).forEach(key => {
     const [dayKey, slotKey] = key.split(':');
     const data = normalizeCell(state.meals[dayKey] && state.meals[dayKey][slotKey]);
-    const { btn, content, clearBtn } = cellEls[key];
+    const { btn, thumb, content, clearBtn } = cellEls[key];
     content.innerHTML = '';
     if (data.name) {
       btn.classList.remove('empty');
@@ -105,10 +110,17 @@ export function renderMeals() {
         c.textContent = dish.ingredients.length + (dish.ingredients.length === 1 ? ' ingredient' : ' ingredients');
         content.appendChild(c);
       }
+      if (dish && dish.photo) {
+        thumb.src = dish.photo;
+        thumb.alt = data.name;
+      } else {
+        thumb.removeAttribute('src');
+      }
       clearBtn.style.display = '';
     } else {
       btn.classList.add('empty');
       content.textContent = '+ add ' + slotLabel(slotKey).toLowerCase();
+      thumb.removeAttribute('src');
       clearBtn.style.display = 'none';
     }
   });

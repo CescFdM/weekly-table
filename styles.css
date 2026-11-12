@@ -188,7 +188,12 @@ header.top {
 .slotbtn.empty .slotcontent { color: var(--ink-faint); font-style: italic; }
 .slotbtn.drop-hover { background: var(--accent-tint); border-color: var(--accent); }
 
-.slotcontent { display: flex; flex-direction: column; gap: 0.15rem; padding-right: 1.1rem; }
+.slotthumb {
+  width: 2.1rem; height: 2.1rem; border-radius: 6px; object-fit: cover;
+  flex-shrink: 0; margin-right: 0.5rem;
+}
+.slotthumb:not([src]) { display: none; }
+.slotcontent { display: flex; flex-direction: column; gap: 0.15rem; padding-right: 1.1rem; min-width: 0; }
 .slotcontent .dishname { font-weight: 500; }
 .slotcontent .ingcount { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.66rem; color: var(--ink-soft); }
 
