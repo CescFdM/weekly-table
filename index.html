@@ -611,7 +611,7 @@
     { icon: '🥕', terms: ['carrot', 'carrots', 'karotte', 'karotten', 'möhre', 'mohre', 'möhren', 'mohren'] },
     { icon: '🥬', terms: ['spinach', 'spinat'] },
     { icon: '🍄', terms: ['mushroom', 'mushrooms', 'pilz', 'pilze', 'champignon', 'champignons'] },
-    { icon: '🎃', terms: ['pumpkin', 'kurbis'] },
+    { icon: '🎃', terms: ['pumpkin', 'kurbis', 'kürbis'] },
     { icon: '🐟', terms: ['fish', 'fisch'] },
     { icon: '🐟', terms: ['salmon', 'lachs'] },
     { icon: '🐟', terms: ['tuna', 'thunfisch'] },
@@ -1025,13 +1025,13 @@
   }
 
   // ---- Auto photo search (Unsplash) ----
-  function pickBestPhoto(results, name) {
+  function pickBestPhoto(results, queryText) {
     // The API's top-ranked hit is sometimes a generic photo (e.g. plain
     // "eggs" for a query like "Scrambled Eggs"). Re-rank a batch of
-    // candidates by how many significant words from the dish name actually
+    // candidates by how many significant words from the search text actually
     // appear in each photo's own description/alt text/tags, and prefer
     // that match over blindly trusting result #1.
-    const words = name.toLowerCase().split(/[^a-zA-Z\u00e4\u00f6\u00fc\u00df]+/).filter(w => w.length > 2);
+    const words = queryText.toLowerCase().split(/[^a-zA-Z\u00e4\u00f6\u00fc\u00df]+/).filter(w => w.length > 2);
     if (!words.length) return results[0] || null;
     let best = null, bestScore = -1;
     results.forEach(r => {
@@ -1043,20 +1043,56 @@
     return bestScore > 0 ? best : (results[0] || null);
   }
 
+  // Unsplash's own search text index is English-only. A German dish name
+  // (even a single compound word like "Pilzrisotto") can find nothing even
+  // though plenty of matching photos exist, tagged in English ("mushroom
+  // risotto"). Reuse the same bilingual food-term dictionary built for the
+  // shopping list (INGREDIENT_GROUPS / TERM_INDEX) to swap any recognized
+  // German fragment — even inside a compound word, with no spaces — for its
+  // English equivalent before searching.
+  const SEARCH_TERMS = Array.from(TERM_INDEX.keys()).filter(t => t.length >= 3).sort((a, b) => b.length - a.length);
+  function anglicizeForSearch(text) {
+    let result = ' ' + (text || '').toLowerCase() + ' ';
+    SEARCH_TERMS.forEach(term => {
+      if (result.indexOf(term) === -1) return;
+      const english = INGREDIENT_GROUPS[TERM_INDEX.get(term)].terms[0];
+      if (english && english !== term) result = result.split(term).join(' ' + english + ' ');
+    });
+    return result.replace(/\s+/g, ' ').trim();
+  }
+
+  async function unsplashSearch(query) {
+    const url = 'https://api.unsplash.com/search/photos?per_page=8&query=' + encodeURIComponent(query);
+    const res = await fetch(url, { headers: { Authorization: 'Client-ID ' + UNSPLASH_ACCESS_KEY } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data && data.results) || [];
+  }
+
   async function searchDishImage(name, ingredients) {
     if (!UNSPLASH_ACCESS_KEY) return null;
-    // No orientation filter: the photo frame crops any shape to fit
-    // (object-fit: cover), and filtering to "squarish" was needlessly
-    // narrowing the candidate pool, which is part of why a generic photo
-    // could outrank the better, more specific matches.
-    const url = 'https://api.unsplash.com/search/photos?per_page=8&query=' + encodeURIComponent(name);
     try {
-      const res = await fetch(url, { headers: { Authorization: 'Client-ID ' + UNSPLASH_ACCESS_KEY } });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const results = (data && data.results) || [];
+      const rawQuery = (name || '').toLowerCase().trim();
+      const anglicized = anglicizeForSearch(name);
+      // No orientation filter: the photo frame crops any shape to fit
+      // (object-fit: cover), and filtering to "squarish" was needlessly
+      // narrowing the candidate pool, which is part of why a generic photo
+      // could outrank the better, more specific matches.
+      let results = await unsplashSearch(anglicized || rawQuery);
+      let queryUsed = anglicized || rawQuery;
+      if (!results.length && anglicized !== rawQuery) {
+        results = await unsplashSearch(rawQuery);
+        queryUsed = rawQuery;
+      }
+      if (!results.length && ingredients && ingredients.length) {
+        const fromIngredients = anglicizeForSearch(ingredients.join(' '));
+        if (fromIngredients) {
+          results = await unsplashSearch(fromIngredients);
+          queryUsed = fromIngredients;
+        }
+      }
       if (!results.length) return null;
-      const photo = pickBestPhoto(results, name);
+      const photo = pickBestPhoto(results, queryUsed);
       if (!photo || !photo.urls) return null;
       if (photo.links && photo.links.download_location) {
         // Unsplash API guideline: ping this whenever a photo is put to use.
