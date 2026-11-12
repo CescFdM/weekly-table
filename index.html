@@ -226,7 +226,15 @@
   }
   .panel-head h2 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.25rem; font-weight: 700; margin: 0; }
   .panel-head .headright { display: flex; align-items: center; gap: 0.9rem; }
+  .panel-head .headleft { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
   .count { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.78rem; color: var(--ink-soft); }
+
+  .dish-search {
+    border: 1px solid var(--line); border-radius: var(--radius-field);
+    padding: 0.35rem 0.65rem; font-family: 'Work Sans', sans-serif; font-size: 0.82rem;
+    background: var(--bg); color: var(--ink); width: 180px; max-width: 100%;
+  }
+  .dish-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
 
   /* ---- Shopping list ---- */
 
@@ -474,7 +482,10 @@
 
   <section class="panel">
     <div class="panel-head">
-      <h2>Your dishes</h2>
+      <div class="headleft">
+        <h2>Your dishes</h2>
+        <input type="search" id="dishSearchInput" class="dish-search" placeholder="Search dishes…" aria-label="Search your dishes">
+      </div>
       <div class="headright">
         <span class="count" id="dishCount">0 dishes</span>
         <button type="button" class="btn-herb" id="newDishBtn">+ New dish</button>
@@ -713,6 +724,8 @@
   const dishGridEl = document.getElementById('dishGrid');
   const dishCountEl = document.getElementById('dishCount');
   const newDishBtn = document.getElementById('newDishBtn');
+  const dishSearchInput = document.getElementById('dishSearchInput');
+  let dishSearchQuery = '';
   const dishNamesList = document.getElementById('dishNamesList');
 
   const modalBackdrop = document.getElementById('modalBackdrop');
@@ -934,9 +947,13 @@
   }
 
   function renderDishes() {
-    dishCountEl.textContent = dishes.length === 1 ? '1 dish' : dishes.length + ' dishes';
-    dishGridEl.innerHTML = '';
     refreshDishNamesList();
+    const sorted = [...dishes].sort((a, b) => a.name.localeCompare(b.name));
+    const query = dishSearchQuery.trim();
+    const visible = query ? sorted.filter(d => dishMatchesQuery(d, query)) : sorted;
+    const totalLabel = dishes.length === 1 ? '1 dish' : dishes.length + ' dishes';
+    dishCountEl.textContent = query ? visible.length + ' of ' + totalLabel : totalLabel;
+    dishGridEl.innerHTML = '';
     if (!dishes.length) {
       const p = document.createElement('p');
       p.className = 'empty';
@@ -944,8 +961,14 @@
       dishGridEl.appendChild(p);
       return;
     }
-    const sorted = [...dishes].sort((a, b) => a.name.localeCompare(b.name));
-    sorted.forEach(dish => {
+    if (!visible.length) {
+      const p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = 'No dishes match \u201c' + query + '\u201d.';
+      dishGridEl.appendChild(p);
+      return;
+    }
+    visible.forEach(dish => {
       const card = document.createElement('div');
       card.className = 'dish-card';
       card.draggable = true;
@@ -1059,6 +1082,25 @@
       if (english && english !== term) result = result.split(term).join(' ' + english + ' ');
     });
     return result.replace(/\s+/g, ' ').trim();
+  }
+
+  // ---- Dish search (fuzzy, bilingual) ----
+  // Splits text into both its raw words and its anglicized words, so a
+  // search term matches whichever side (German or English) it's typed in,
+  // and even inside a compound word (e.g. "R\u00fchreier" -> "egg" matches
+  // a dish called "Scrambled Eggs").
+  function searchTokens(text) {
+    const raw = (text || '').toLowerCase();
+    const combined = raw + ' ' + anglicizeForSearch(text);
+    return combined.split(/[^a-z0-9\u00e4\u00f6\u00fc\u00df]+/).filter(w => w.length >= 3);
+  }
+  function dishMatchesQuery(dish, query) {
+    if (!query) return true;
+    const qTokens = searchTokens(query);
+    if (!qTokens.length) return true;
+    const dishText = dish.name + ' ' + (dish.ingredients || []).join(' ');
+    const dishHaystack = dishText.toLowerCase() + ' ' + anglicizeForSearch(dishText);
+    return qTokens.some(t => dishHaystack.indexOf(t) !== -1);
   }
 
   async function unsplashSearch(query) {
@@ -1494,6 +1536,10 @@
     closeModal();
   });
   newDishBtn.addEventListener('click', openLibraryAddModal);
+  dishSearchInput.addEventListener('input', () => {
+    dishSearchQuery = dishSearchInput.value;
+    renderDishes();
+  });
 
   modalSaveBtn.addEventListener('click', async () => {
     const name = modalName.value.trim();
